@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -13,6 +12,7 @@ type HttpRequestBuilder struct {
 	username     string
 	password     string
 	headers      map[string]string
+	params       map[string]string
 	useBasicAuth bool
 	url          string
 	body         io.Reader
@@ -20,7 +20,7 @@ type HttpRequestBuilder struct {
 }
 
 func NewHTTPRequest() *HttpRequestBuilder {
-	return &HttpRequestBuilder{headers: make(map[string]string)}
+	return &HttpRequestBuilder{headers: make(map[string]string), params: make(map[string]string)}
 }
 
 func (h *HttpRequestBuilder) GET() *HttpRequestBuilder {
@@ -55,8 +55,13 @@ func (h *HttpRequestBuilder) WithBasicAuth(username, password string) *HttpReque
 	return h
 }
 
-func (h *HttpRequestBuilder) AddHeader(key string, value string) *HttpRequestBuilder {
+func (h *HttpRequestBuilder) WithHeader(key, value string) *HttpRequestBuilder {
 	h.headers[key] = value
+	return h
+}
+
+func (h *HttpRequestBuilder) WithParam(key, value string) *HttpRequestBuilder {
+	h.params[key] = value
 	return h
 }
 
@@ -81,6 +86,14 @@ func (h *HttpRequestBuilder) Do() ([]byte, int, error) {
 		return nil, 0, err
 	}
 
+	if len(h.params) > 0 {
+		query := request.URL.Query()
+		for param, value := range h.params {
+			query.Add(param, value)
+		}
+		request.URL.RawQuery = query.Encode()
+	}
+
 	for header, value := range h.headers {
 		request.Header.Set(header, value)
 	}
@@ -103,7 +116,6 @@ func (h *HttpRequestBuilder) Do() ([]byte, int, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
-
+	body, _ := io.ReadAll(resp.Body)
 	return body, resp.StatusCode, nil
 }
